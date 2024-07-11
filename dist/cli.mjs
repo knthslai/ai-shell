@@ -1800,7 +1800,8 @@ async function prompt({
       const { readExplanation } = await getExplanation({
         script,
         key,
-        apiEndpoint
+        apiEndpoint,
+        model
       });
       spin.stop(`${i18n.t("Explanation")}:`);
       console.log("");

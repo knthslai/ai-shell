@@ -135,6 +135,7 @@ export async function prompt({
         script,
         key,
         apiEndpoint,
+        model,
       });
       spin.stop(`${i18n.t('Explanation')}:`);
       console.log('');

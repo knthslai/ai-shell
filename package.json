@@ -1,5 +1,5 @@
 {
-  "name": "@knthslai/ai-shell",
+  "name": "@builder.io/ai-shell",
   "description": "A CLI that converts natural language to shell commands.",
   "version": "1.0.10",
   "type": "module",
@@ -16,20 +16,18 @@
     "i18next": "^22.4.15",
     "ini": "^4.0.0",
     "kolorist": "^1.7.0",
-    "openai": "^3.2.1",
-    "@types/dedent": "^0.7.2",
-    "@types/ini": "^4.1.1"
+    "openai": "^3.2.1"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/knthslai/ai-shell"
+    "url": "https://github.com/BuilderIO/ai-shell"
   },
   "files": [
-    "src"
+    "dist"
   ],
   "bin": {
-    "ai-shell": "jiti ./src/cli.ts",
-    "ai": "jiti ./src/cli.ts"
+    "ai-shell": "./dist/cli.mjs",
+    "ai": "./dist/cli.mjs"
   },
   "scripts": {
     "start": "jiti ./src/cli.ts",
@@ -40,6 +38,8 @@
     "release:patch": "npm run build && npm version patch && npm run build && npm publish && git push --follow-tags"
   },
   "devDependencies": {
+    "@types/dedent": "^0.7.0",
+    "@types/ini": "^1.3.31",
     "@types/node": "^18.15.11",
     "@typescript-eslint/eslint-plugin": "^5.57.1",
     "@typescript-eslint/parser": "^5.57.1",
