@@ -40,7 +40,7 @@ const configParsers = {
   },
   MODEL(model?: string) {
     if (!model || model.length === 0) {
-      return 'gpt-3.5-turbo';
+      return 'llama3';
     }
 
     return model as TiktokenModel;
@@ -49,7 +49,7 @@ const configParsers = {
     return String(mode).toLowerCase() === 'true';
   },
   OPENAI_API_ENDPOINT(apiEndpoint?: string) {
-    return apiEndpoint || 'https://api.openai.com/v1';
+    return apiEndpoint || 'http://localhost:11434/v1';
   },
   LANGUAGE(language?: string) {
     return language || 'en';
