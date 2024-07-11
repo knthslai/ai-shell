@@ -25,11 +25,11 @@
     "url": "https://github.com/knthslai/ai-shell"
   },
   "files": [
-    "dist"
+    "src"
   ],
   "bin": {
-    "ai-shell": "./dist/cli.mjs",
-    "ai": "./dist/cli.mjs"
+    "ai-shell": "jiti ./src/cli.ts",
+    "ai": "jiti ./src/cli.ts"
   },
   "scripts": {
     "start": "jiti ./src/cli.ts",
