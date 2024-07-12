@@ -25,14 +25,20 @@ function getOpenAi(key: string, apiEndpoint: string) {
   return openAi;
 }
 
-// Openai outputs markdown format for code blocks. It oftne uses
+// Openai outputs markdown format for code blocks. It often uses
 // a github style like: "```bash"
-const shellCodeExclusions = [/```[a-zA-Z]*\n/gi, /```[a-zA-Z]*/gi, '\n'];
+// as well as excluding ``` from the end of the line
+const shellCodeExclusions = [
+  /```[a-zA-Z]*\n/gi,
+  /```[a-zA-Z]*/gi,
+  '\n',
+  /``\s*``/gi,
+  /`\s*`/gi,
+];
 
 export async function getScriptAndInfo({
   prompt,
   key,
-  model,
   apiEndpoint,
 }: {
   prompt: string;
@@ -45,7 +51,6 @@ export async function getScriptAndInfo({
     prompt: fullPrompt,
     number: 1,
     key,
-    model,
     apiEndpoint,
   });
   const iterableStream = streamToIterable(stream);
@@ -59,12 +64,10 @@ export async function generateCompletion({
   prompt,
   number = 1,
   key,
-  model,
   apiEndpoint,
 }: {
   prompt: string | ChatCompletionRequestMessage[];
   number?: number;
-  model?: string;
   key: string;
   apiEndpoint: string;
 }) {
@@ -72,7 +75,7 @@ export async function generateCompletion({
   try {
     const completion = await openAi.createChatCompletion(
       {
-        model: model || 'dolphin-mixtral:8x7b',
+        model: 'dolphin-mixtral:8x7b',
         messages: Array.isArray(prompt)
           ? prompt
           : [{ role: 'user', content: prompt }],
@@ -139,7 +142,6 @@ export async function generateCompletion({
 export async function getExplanation({
   script,
   key,
-  model,
   apiEndpoint,
 }: {
   script: string;
@@ -152,7 +154,6 @@ export async function getExplanation({
     prompt,
     key,
     number: 1,
-    model,
     apiEndpoint,
   });
   const iterableStream = streamToIterable(stream);
@@ -163,7 +164,6 @@ export async function getRevision({
   prompt,
   code,
   key,
-  model,
   apiEndpoint,
 }: {
   prompt: string;
@@ -177,7 +177,6 @@ export async function getRevision({
     prompt: fullPrompt,
     key,
     number: 1,
-    model,
     apiEndpoint,
   });
   const iterableStream = streamToIterable(stream);
@@ -218,7 +217,8 @@ export const readData =
         for (const payload of payloads) {
           if (payload.includes('[DONE]') || stopTextStream) {
             dataStart = false;
-            resolve(data);
+            // remove only 1 backtick at the end
+            resolve(data.trim().replace(/`{1}$/g, ''));
             return;
           }
 

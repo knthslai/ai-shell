@@ -1098,11 +1098,16 @@ function getOpenAi(key, apiEndpoint) {
   );
   return openAi;
 }
-const shellCodeExclusions = [/```[a-zA-Z]*\n/gi, /```[a-zA-Z]*/gi, "\n"];
+const shellCodeExclusions = [
+  /```[a-zA-Z]*\n/gi,
+  /```[a-zA-Z]*/gi,
+  "\n",
+  /``\s*``/gi,
+  /`\s*`/gi
+];
 async function getScriptAndInfo({
   prompt,
   key,
-  model,
   apiEndpoint
 }) {
   const fullPrompt = getFullPrompt(prompt);
@@ -1110,7 +1115,6 @@ async function getScriptAndInfo({
     prompt: fullPrompt,
     number: 1,
     key,
-    model,
     apiEndpoint
   });
   const iterableStream = streamToIterable(stream);
@@ -1123,14 +1127,13 @@ async function generateCompletion({
   prompt,
   number = 1,
   key,
-  model,
   apiEndpoint
 }) {
   const openAi = getOpenAi(key, apiEndpoint);
   try {
     const completion = await openAi.createChatCompletion(
       {
-        model: model || "llama3",
+        model: "dolphin-mixtral:8x7b",
         messages: Array.isArray(prompt) ? prompt : [{ role: "user", content: prompt }],
         n: Math.min(number, 10),
         stream: true
@@ -1180,7 +1183,6 @@ async function generateCompletion({
 async function getExplanation({
   script,
   key,
-  model,
   apiEndpoint
 }) {
   const prompt = getExplanationPrompt(script);
@@ -1188,7 +1190,6 @@ async function getExplanation({
     prompt,
     key,
     number: 1,
-    model,
     apiEndpoint
   });
   const iterableStream = streamToIterable(stream);
@@ -1198,7 +1199,6 @@ async function getRevision({
   prompt,
   code,
   key,
-  model,
   apiEndpoint
 }) {
   const fullPrompt = getRevisionPrompt(prompt, code);
@@ -1206,7 +1206,6 @@ async function getRevision({
     prompt: fullPrompt,
     key,
     number: 1,
-    model,
     apiEndpoint
   });
   const iterableStream = streamToIterable(stream);
@@ -1236,7 +1235,7 @@ const readData = (iterableStream, ...excluded) => (writer) => new Promise(async 
     for (const payload of payloads) {
       if (payload.includes("[DONE]") || stopTextStream) {
         dataStart = false;
-        resolve(data);
+        resolve(data.trim().replace(/`{1}$/g, ""));
         return;
       }
       if (payload.startsWith("data:")) {
@@ -1345,11 +1344,8 @@ const configParsers = {
     }
     return key;
   },
-  MODEL(model) {
-    if (!model || model.length === 0) {
-      return "llama3";
-    }
-    return model;
+  MODEL() {
+    return "dolphin-mixtral:8x7b";
   },
   SILENT_MODE(mode) {
     return String(mode).toLowerCase() === "true";
@@ -1758,7 +1754,7 @@ async function promptForRevision() {
     },
     {
       onCancel: () => {
-        p.cancel(i18n.t("Goodbye!"));
+        p.cancel(`${dim("--------")} \u{1F3C1} ${dim("--------")}`);
         process.exit(0);
       }
     }
@@ -1775,9 +1771,9 @@ async function prompt({
     OPENAI_API_ENDPOINT: apiEndpoint,
     MODEL: model
   } = await getConfig();
-  const skipCommandExplanation = silentMode || SILENT_MODE;
-  console.log("");
-  p.intro(`${cyan(`${projectName}`)}`);
+  const skip = silentMode || SILENT_MODE;
+  p.intro(`${dim("-----")} ${cyan(`${projectName}`)} ${dim("-----")}`);
+  p.log.info(`<- ${dim(usePrompt ?? "")}`);
   const thePrompt = usePrompt || await getPrompt();
   const spin = p.spinner();
   spin.start(i18n.t(`Loading...`));
@@ -1787,33 +1783,15 @@ async function prompt({
     model,
     apiEndpoint
   });
-  spin.stop(`${i18n.t("Your script")}:`);
-  console.log("");
   const script = await readScript(process.stdout.write.bind(process.stdout));
-  console.log("");
-  console.log("");
-  console.log(dim("\u2022"));
-  if (!skipCommandExplanation) {
-    spin.start(i18n.t(`Getting explanation...`));
-    const info = await readInfo(process.stdout.write.bind(process.stdout));
-    if (!info) {
-      const { readExplanation } = await getExplanation({
-        script,
-        key,
-        apiEndpoint,
-        model
-      });
-      spin.stop(`${i18n.t("Explanation")}:`);
-      console.log("");
-      await readExplanation(process.stdout.write.bind(process.stdout));
-      console.log("");
-      console.log("");
-      console.log(dim("\u2022"));
-    }
+  spin.stop(`-> ${script}`);
+  if (skip) {
+    p.outro(`${dim("--------")} \u{1F3C1} ${dim("--------")}`);
+    process.exit(0);
   }
-  await runOrReviseFlow(script, key, model, apiEndpoint, silentMode);
+  await runOrReviseFlow(script, key, apiEndpoint, silentMode, readInfo);
 }
-async function runOrReviseFlow(script, key, model, apiEndpoint, silentMode) {
+async function runOrReviseFlow(script, key, apiEndpoint, silentMode = false, readInfo) {
   const emptyScript = script.trim() === "";
   const answer = await p.select({
     message: emptyScript ? i18n.t("Revise this script?") : i18n.t("Run this script?"),
@@ -1840,11 +1818,19 @@ async function runOrReviseFlow(script, key, model, apiEndpoint, silentMode) {
           }
         }
       ],
+      // explain the script
+      {
+        label: "\u{1F914} " + i18n.t("Explain"),
+        hint: i18n.t("Explain the script"),
+        value: async () => {
+          await explanationFlow(script, key, apiEndpoint, silentMode, readInfo);
+        }
+      },
       {
         label: "\u{1F501} " + i18n.t("Revise"),
         hint: i18n.t("Give feedback via prompt and get a new result"),
         value: async () => {
-          await revisionFlow(script, key, model, apiEndpoint, silentMode);
+          await revisionFlow(script, key, apiEndpoint, silentMode, readInfo);
         }
       },
       {
@@ -1859,7 +1845,7 @@ async function runOrReviseFlow(script, key, model, apiEndpoint, silentMode) {
         label: "\u274C " + i18n.t("Cancel"),
         hint: i18n.t("Exit the program"),
         value: () => {
-          p.cancel(i18n.t("Goodbye!"));
+          p.cancel(`${dim("--------")} \u{1F3C1} ${dim("--------")}`);
           process.exit(0);
         }
       }
@@ -1869,7 +1855,25 @@ async function runOrReviseFlow(script, key, model, apiEndpoint, silentMode) {
     await answer();
   }
 }
-async function revisionFlow(currentScript, key, model, apiEndpoint, silentMode) {
+async function explanationFlow(script, key, apiEndpoint, silentMode = false, readInfo) {
+  const spin = p.spinner();
+  spin.start(i18n.t(`Getting explanation...`));
+  const info = await readInfo(process.stdout.write.bind(process.stdout));
+  if (!info) {
+    const { readExplanation } = await getExplanation({
+      script,
+      key,
+      apiEndpoint
+    });
+    spin.stop(`${i18n.t("Explanation")}:`);
+    console.log("");
+    await readExplanation(process.stdout.write.bind(process.stdout));
+    console.log("");
+    console.log(dim("\u2022"));
+  }
+  await runOrReviseFlow(script, key, apiEndpoint, silentMode, readInfo);
+}
+async function revisionFlow(currentScript, key, apiEndpoint, silentMode = false, readInfo) {
   const revision = await promptForRevision();
   const spin = p.spinner();
   spin.start(i18n.t(`Loading...`));
@@ -1877,7 +1881,6 @@ async function revisionFlow(currentScript, key, model, apiEndpoint, silentMode) 
     prompt: revision,
     code: currentScript,
     key,
-    model,
     apiEndpoint
   });
   spin.stop(`${i18n.t(`Your new script`)}:`);
@@ -1886,23 +1889,7 @@ async function revisionFlow(currentScript, key, model, apiEndpoint, silentMode) 
   console.log("");
   console.log("");
   console.log(dim("\u2022"));
-  if (!silentMode) {
-    const infoSpin = p.spinner();
-    infoSpin.start(i18n.t(`Getting explanation...`));
-    const { readExplanation } = await getExplanation({
-      script,
-      key,
-      model,
-      apiEndpoint
-    });
-    infoSpin.stop(`${i18n.t("Explanation")}:`);
-    console.log("");
-    await readExplanation(process.stdout.write.bind(process.stdout));
-    console.log("");
-    console.log("");
-    console.log(dim("\u2022"));
-  }
-  await runOrReviseFlow(script, key, model, apiEndpoint, silentMode);
+  await runOrReviseFlow(script, key, apiEndpoint, silentMode, readInfo);
 }
 
 cli(

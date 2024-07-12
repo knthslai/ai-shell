@@ -26,8 +26,7 @@
     "dist"
   ],
   "bin": {
-    "ai-shell": "./dist/cli.mjs",
-    "ai": "./dist/cli.mjs"
+    "ai-shell": "./dist/cli.mjs"
   },
   "scripts": {
     "start": "jiti ./src/cli.ts",

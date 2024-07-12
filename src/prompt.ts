@@ -89,7 +89,7 @@ async function promptForRevision() {
     },
     {
       onCancel: () => {
-        p.cancel(i18n.t('Goodbye!'));
+        p.cancel(`${dim('--------')} 🏁 ${dim('--------')}`);
         process.exit(0);
       },
     }
@@ -107,10 +107,9 @@ export async function prompt({
     OPENAI_API_ENDPOINT: apiEndpoint,
     MODEL: model,
   } = await getConfig();
-  const skipCommandExplanation = silentMode || SILENT_MODE;
-
-  console.log('');
-  p.intro(`${cyan(`${projectName}`)}`);
+  const skip = silentMode || SILENT_MODE;
+  p.intro(`${dim('-----')} ${cyan(`${projectName}`)} ${dim('-----')}`);
+  p.log.info(`<- ${dim(usePrompt ?? '')}`);
 
   const thePrompt = usePrompt || (await getPrompt());
   const spin = p.spinner();
@@ -121,40 +120,22 @@ export async function prompt({
     model,
     apiEndpoint,
   });
-  spin.stop(`${i18n.t('Your script')}:`);
-  console.log('');
   const script = await readScript(process.stdout.write.bind(process.stdout));
-  console.log('');
-  console.log('');
-  console.log(dim('•'));
-  if (!skipCommandExplanation) {
-    spin.start(i18n.t(`Getting explanation...`));
-    const info = await readInfo(process.stdout.write.bind(process.stdout));
-    if (!info) {
-      const { readExplanation } = await getExplanation({
-        script,
-        key,
-        apiEndpoint,
-        model,
-      });
-      spin.stop(`${i18n.t('Explanation')}:`);
-      console.log('');
-      await readExplanation(process.stdout.write.bind(process.stdout));
-      console.log('');
-      console.log('');
-      console.log(dim('•'));
-    }
+  spin.stop(`-> ${script}`);
+  if (skip) {
+    p.outro(`${dim('--------')} 🏁 ${dim('--------')}`);
+    process.exit(0);
   }
 
-  await runOrReviseFlow(script, key, model, apiEndpoint, silentMode);
+  await runOrReviseFlow(script, key, apiEndpoint, silentMode, readInfo);
 }
 
 async function runOrReviseFlow(
   script: string,
   key: string,
-  model: string,
   apiEndpoint: string,
-  silentMode?: boolean
+  silentMode = false,
+  readInfo: (writer: (data: string) => void) => Promise<string>
 ) {
   const emptyScript = script.trim() === '';
 
@@ -187,11 +168,19 @@ async function runOrReviseFlow(
               },
             },
           ]),
+      // explain the script
+      {
+        label: '🤔 ' + i18n.t('Explain'),
+        hint: i18n.t('Explain the script'),
+        value: async () => {
+          await explanationFlow(script, key, apiEndpoint, silentMode, readInfo);
+        },
+      },
       {
         label: '🔁 ' + i18n.t('Revise'),
         hint: i18n.t('Give feedback via prompt and get a new result'),
         value: async () => {
-          await revisionFlow(script, key, model, apiEndpoint, silentMode);
+          await revisionFlow(script, key, apiEndpoint, silentMode, readInfo);
         },
       },
       {
@@ -206,7 +195,7 @@ async function runOrReviseFlow(
         label: '❌ ' + i18n.t('Cancel'),
         hint: i18n.t('Exit the program'),
         value: () => {
-          p.cancel(i18n.t('Goodbye!'));
+          p.cancel(`${dim('--------')} 🏁 ${dim('--------')}`);
           process.exit(0);
         },
       },
@@ -218,12 +207,37 @@ async function runOrReviseFlow(
   }
 }
 
+async function explanationFlow(
+  script: string,
+  key: string,
+  apiEndpoint: string,
+  silentMode = false,
+  readInfo: (writer: (data: string) => void) => Promise<string>
+) {
+  const spin = p.spinner();
+  spin.start(i18n.t(`Getting explanation...`));
+  const info = await readInfo(process.stdout.write.bind(process.stdout));
+  if (!info) {
+    const { readExplanation } = await getExplanation({
+      script,
+      key,
+      apiEndpoint,
+    });
+    spin.stop(`${i18n.t('Explanation')}:`);
+    console.log('');
+    await readExplanation(process.stdout.write.bind(process.stdout));
+    console.log('');
+    console.log(dim('•'));
+  }
+  await runOrReviseFlow(script, key, apiEndpoint, silentMode, readInfo);
+}
+
 async function revisionFlow(
   currentScript: string,
   key: string,
-  model: string,
   apiEndpoint: string,
-  silentMode?: boolean
+  silentMode = false,
+  readInfo: (writer: (data: string) => void) => Promise<string>
 ) {
   const revision = await promptForRevision();
   const spin = p.spinner();
@@ -232,7 +246,6 @@ async function revisionFlow(
     prompt: revision,
     code: currentScript,
     key,
-    model,
     apiEndpoint,
   });
   spin.stop(`${i18n.t(`Your new script`)}:`);
@@ -243,25 +256,7 @@ async function revisionFlow(
   console.log('');
   console.log(dim('•'));
 
-  if (!silentMode) {
-    const infoSpin = p.spinner();
-    infoSpin.start(i18n.t(`Getting explanation...`));
-    const { readExplanation } = await getExplanation({
-      script,
-      key,
-      model,
-      apiEndpoint,
-    });
-
-    infoSpin.stop(`${i18n.t('Explanation')}:`);
-    console.log('');
-    await readExplanation(process.stdout.write.bind(process.stdout));
-    console.log('');
-    console.log('');
-    console.log(dim('•'));
-  }
-
-  await runOrReviseFlow(script, key, model, apiEndpoint, silentMode);
+  await runOrReviseFlow(script, key, apiEndpoint, silentMode, readInfo);
 }
 
 export const parseAssert = (name: string, condition: any, message: string) => {

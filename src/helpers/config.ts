@@ -38,12 +38,8 @@ const configParsers = {
 
     return key;
   },
-  MODEL(model?: string) {
-    if (!model || model.length === 0) {
-      return 'dolphin-mixtral:8x7b';
-    }
-
-    return model as TiktokenModel;
+  MODEL() {
+    return 'dolphin-mixtral:8x7b' as TiktokenModel;
   },
   SILENT_MODE(mode?: string) {
     return String(mode).toLowerCase() === 'true';
