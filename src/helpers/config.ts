@@ -40,7 +40,7 @@ const configParsers = {
   },
   MODEL(model?: string) {
     if (!model || model.length === 0) {
-      return 'llama3';
+      return 'dolphin-mixtral:8x7b';
     }
 
     return model as TiktokenModel;

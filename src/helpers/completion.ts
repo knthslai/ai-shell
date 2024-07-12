@@ -72,7 +72,7 @@ export async function generateCompletion({
   try {
     const completion = await openAi.createChatCompletion(
       {
-        model: model || 'llama3',
+        model: model || 'dolphin-mixtral:8x7b',
         messages: Array.isArray(prompt)
           ? prompt
           : [{ role: 'user', content: prompt }],
